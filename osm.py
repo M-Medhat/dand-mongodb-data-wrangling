@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*
 from collections import defaultdict
 import xml.etree.cElementTree as ET
 import pprint
@@ -8,9 +9,25 @@ import json
 lower = re.compile(r'^([a-z]|_)*$')
 lower_colon = re.compile(r'^([a-z]|_)*:([a-z]|_)*$')
 problemchars = re.compile(r'[=\+/&<>;\'"\?%#$@\,\. \t\r\n]')
-street_type_re = re.compile(r'\b\S+\.?$', re.IGNORECASE | re.UNICODE)
+en_street_type_re = re.compile(r'\b\S+\.?$', re.IGNORECASE)
+# street type appear at the beginning in Arabic
+ar_street_type_re = re.compile(r'^\S+\b\.?', re.UNICODE)
 
-expected = ["Street", "Avenue", "Boulevard", "Drive", "Court", "Place", "Square", "Lane", "Road", "Trail", "Parkway", "Commons"]
+# Arabic part => [Shara', Midan, Tariq, Mehwar, Al-Mehwar, Kornish, Migawrah, Imtidad]
+expected = ["Street", "Avenue", "Boulevard",
+               "Drive", "Court", "Place",
+               "Square", "Lane", "Road",
+               "Trail", "Parkway", "Commons",
+              u"شارع", u"ميدان", u"طريق",
+              u"محور", u"المحور", u"كورنيش",
+              u"مجاورة", u"امتداد"]
+
+en_mapping = { "St": "Street",
+            "St.": "Street",
+            "Rd.": "Road",
+            "Rd" : "Road",
+            "Ave": "Avenue"
+            }
 
 CREATED = [ "version", "changeset", "timestamp", "user", "uid"]
 
@@ -85,7 +102,11 @@ def audit_street_type(street_types, street_name):
     street_types: the dictionary to append found format to
     street_name: the name of the street to audit
   """
-  m = street_type_re.search(street_name)
+  if isinstance(street_name, unicode): # if Arabic
+	m = ar_street_type_re.search(street_name)
+  else: # if English
+    m = en_street_type_re.search(street_name)
+
   if m:
     street_type = m.group()
     if street_type not in expected:
@@ -123,6 +144,29 @@ def audit(osmfile):
 
   return street_types
 
+
+def update_street_name(name, mapping):
+  """
+  Enhance street name by normalizing types. and adds the word street in 
+  Arabic (شارع) the street names that are missing it.
+
+  Args:
+    name: the name of the street
+    mapping: a dictionary mapping abbrivations to correct forms
+  Returns:
+   name: enhanced street name
+  """
+  if isinstance(name, unicode): # if arabic
+    # street type is at the beginning
+    t = name.split(" ")[0]
+    if t not in expected:
+      name = u"شارع " + name
+  else:
+    for k, v in mapping.iteritems():
+      if name.endswith(k):
+        name = name.replace(k, v)
+
+  return name
 
 def shape_element(element):
   """
@@ -184,6 +228,8 @@ def shape_element(element):
           # if it's an address with one colon add it to address dictionary
           else:
             key = i.split(":")[1]
+            if key == "street":
+              j = update_street_name(j, en_mapping)
             node["address"][key] = j
         else:
           node[i] = j
