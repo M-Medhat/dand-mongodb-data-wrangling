@@ -1,10 +1,13 @@
 # -*- coding: utf-8 -*
 from collections import defaultdict
+from pymongo import MongoClient
 import xml.etree.cElementTree as ET
 import pprint
 import re
 import codecs
 import json
+import ast
+import os
 
 lower = re.compile(r'^([a-z]|_)*$')
 lower_colon = re.compile(r'^([a-z]|_)*:([a-z]|_)*$')
@@ -276,6 +279,38 @@ def process_map(file_in, pretty = False):
 
   return data
 
+def import_to_db(jsonfile, db):
+  """
+  Imports the data in the JSON file to MongoDB
+  
+  Args:
+    jsonfile: the file to import
+    db: MongoDB to use
+  """
+  # drop collection to recreate it
+  db.nodes.drop()
+
+  lines = 0
+  with open(jsonfile) as f:
+    for line in f:
+      db.nodes.insert(ast.literal_eval(line))
+      lines = lines + 1
+
+  print str(lines) + " records inserted!"
+
+def summarize_data(data_file_path, db):
+  """
+  Creates summary about the data
+
+  Args:
+    data_file_path: the path to OSM XML file
+    db: MongoDB instance
+  """
+  file_size = os.stat(data_file_path).st_size / 1024 / 1024
+  print "Original Data Size: " + str(file_size) + " MB"
+
+  json_size = os.stat(data_file_path + ".json").st_size / 1024 / 1024
+  print "JSON file size: " + str(json_size) + " MB"
 
 class MyPrettyPrinter(pprint.PrettyPrinter):
   """
@@ -303,6 +338,10 @@ def main():
 
   operation = raw_input()
 
+  # create MongoDB client
+  client = MongoClient("mongodb://localhost:27017")
+  db = client.osm
+
   # Count Tags in OSM XML file
   if int(operation) == 1:
     print "Counting tags in OSM XML file ..."
@@ -326,11 +365,11 @@ def main():
 
   elif int(operation) == 5: # Load JSON file to MongoDB
     print "Importing JSON data to MongoDB ..."
-    pass
+    import_to_db(data_file_path + ".json", db)
 
   elif int(operation) == 6: # Create summaries about the data
     print "Creating Summaries ..."
-    pass
+    summarize_data(data_file_path, db)
 
   else:
     print "Invalid Operation"
