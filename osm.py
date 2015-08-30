@@ -311,6 +311,34 @@ def summarize_data(data_file_path, db):
 
   json_size = os.stat(data_file_path + ".json").st_size / 1024 / 1024
   print "JSON file size: " + str(json_size) + " MB"
+  
+  print "Number of Documents: " + str(db.nodes.count())
+  print "Number of Nodes: " + str(db.nodes.find({"type" : "node"}).count())
+  print "Number of Ways: " + str(db.nodes.find({"type" : "way"}).count())
+  print "Number of Unique Users: " + str(len(db.nodes.distinct("created.user")))
+  
+  with_name = db.nodes.find({ "type": "node", "name" : { "$exists": True}}).count()
+  print "Number of Nodes with a name attribute: " +  str(with_name)
+  
+  with_en_name = db.nodes.find({ "type": "node", "name:en" : { "$exists": True}}).count()
+  print "Number of Nodes with a name:en attribute: " +  str(with_en_name)
+  
+  with_ar_name = db.nodes.find({ "type": "node", "name:ar" : { "$exists": True}}).count()
+  print "Number of Nodes with a name:ar attribute: " +  str(with_ar_name)
+  
+  with_both_name = db.nodes.find({ "type": "node", "name:en" : { "$exists": True}, "name:ar" : {"$exists": True}}).count()
+  print "Number of Nodes with a both name:ar and name:en attributes: " +  str(with_both_name)
+  
+  print "Number of Historic Places: " + str(db.nodes.find({"historic": {"$exists": True} }).count())
+  
+  top_5_amenities = db.nodes.aggregate(
+                        [ {"$match":{"amenity":{"$exists":1}}},
+                          {"$group":{"_id":"$amenity","count":{"$sum":1}}},
+                          {"$sort":{"count":-1}},
+                          {"$limit": 5}])
+
+  print "Top 5 Amenities: "
+  MyPrettyPrinter().pprint(list(top_5_amenities))
 
 class MyPrettyPrinter(pprint.PrettyPrinter):
   """
